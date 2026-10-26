@@ -1,0 +1,22 @@
+{
+  "name": "misomoon",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "description": "Privacy-first web analytics that runs in your Cloudflare account.",
+  "type": "module",
+  "scripts": {
+    "deploy": "node migrate.js && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
+  },
+  "cloudflare": {
+    "label": "misomoon analytics",
+    "products": [
+      "Workers",
+      "D1",
+      "Queues"
+    ]
+  }
+}

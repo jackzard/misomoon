@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>misomoon — dashboard</title>
+		<meta name="description" content="Calm, cookieless analytics on Cloudflare." />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<!-- fonts are served from here, so no request carries a visitor's address to a font CDN -->
+		<link rel="preload" href="/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin />
+		<style>@font-face{font-family:Archivo;font-style:normal;font-weight:400 900;font-stretch:68% 100%;font-display:swap;src:url(/fonts/archivo-latin.woff2)format("woff2")}@font-face{font-family:Martian Mono;font-style:normal;font-weight:400 700;font-stretch:87.5%;font-display:swap;src:url(/fonts/martian-mono-latin.woff2)format("woff2")}</style>
+		<script>
+			try {
+				var t = localStorage.getItem('misomoon.theme')
+				document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+			} catch (e) {}
+		</script>
+		<script type="module" crossorigin src="/assets/index-D7CCMl0V.js"></script>
+		<link rel="stylesheet" crossorigin href="/assets/index-DPWFtsL9.css">
+	</head>
+	<body>
+		<div id="app"></div>
+	</body>
+</html>
