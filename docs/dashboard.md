@@ -331,6 +331,34 @@ closes the open menu or window, or removes the last filter. `⌘` `K` on macOS, 
 `K` elsewhere, opens the command palette. The palette goes to a view, picks a period,
 switches site, turns the comparison on or off, clears all filters, and switches the theme.
 
+## Go back and forward
+
+The browser's Back and Forward buttons move through where you've been in the dashboard,
+and Back returns you to the same spot on the page. A reload keeps the spot too. Back leaves
+the dashboard only after you've stepped through everything you did there.
+
+Each of these adds a step:
+
+- Another view, site, or Settings tab
+- A period or a filter
+- A Behavior report or page
+- Another funnel, or a new one
+- A page added to or removed from a path
+- Opening a "See all" window
+
+Back closes a "See all" window, and so does closing it yourself, which leaves no extra step
+behind. Picking a row in the window adds its filter as a step, so Back opens the list again.
+
+The comparison, the chart metric, and the imported-history switch don't add a step. They
+stay with the step you're on, and they're still set when you come back to it.
+
+A place can change after you've left it. Back to a site you've since left or deleted stays
+on the current site, and Back to a deleted funnel opens the first saved one. Unsaved edits
+to a funnel or a form don't come back: save them before you move on.
+
+The demo inside another page, `/demo?embed`, adds no steps, so the Back button of the page
+around it keeps working.
+
 ## Link to a view
 
 The URL follows what you look at, so copy it to share the exact view, period, and filters
@@ -342,6 +370,12 @@ and uses the default for a value it doesn't accept.
 | `site` | A site id | The demo site when you can see it, otherwise your first site |
 | `view` | `overview`, `realtime`, `funnels`, `journeys`, `behavior`, `vitals`, `settings` | `overview` |
 | `tab` | `install`, `goals`, `sharing`, `connect`, `revenue`, `team`, `sites`, `account`, with `view=settings` | The first tab you can see |
+| `report` | `clicks`, `scroll`, `search`, `errors`, `forms`, `media`, `content`, with `view=behavior` | `clicks` |
+| `page` | A page path for a per-page report, with `view=behavior` | The page with the most views |
+| `funnel` | A saved funnel's id, or `new` for an empty one, with `view=funnels` | The first saved funnel |
+| `dir` | `backward` reads the path back from its last page, with `view=journeys` | Forward |
+| `step` | A page on the path, repeated once per page, up to 6, with `view=journeys` | None |
+| `details` | `sources`, `pages`, `actions`, `tech`, `places`, `vitals`: the panel whose "See all" window is open, with `view=overview` or `view=vitals` | Closed |
 | `period` | A value from the [period table](#pick-a-period), or `custom` | `30d` |
 | `from`, `to` | Dates as `YYYY-MM-DD`, at most 400 days apart, with `period=custom` | None |
 | `f` | Filters, as below | None |

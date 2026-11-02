@@ -27,12 +27,11 @@
 	import { regionName } from '../lib/places'
 	import Topbar from '../components/Topbar.svelte'
 	import { deployLinks, normalizePrefix, proxiedScriptTag, proxySnippets, type ProxySnippet } from '@misomoon/core/snippets'
-	import { authHeaders, get, getHtml, loginReturn, send, setToken, type ApiKey, type Provider, type Goal, type ImportRow, type ReportSub, type Segment, type SharedLink, type TeamMembers, ApiError } from '../lib/api'
+	import { authHeaders, get, getHtml, googleReturn, loginReturn, send, setToken, type ApiKey, type Provider, type Goal, type ImportRow, type ReportSub, type Segment, type SharedLink, type TeamMembers, ApiError } from '../lib/api'
 	import { can, type TeamRole } from '@misomoon/core/roles'
 	import { DEFAULT_SEARCH_PARAMS, FEATURES, LIGHT_FEATURES, searchParams, siteFeatures, type Feature } from '@misomoon/core/features'
 	import { OPT_OUT_SNIPPET, privacyPolicy, retentionDays } from '@misomoon/core/privacy'
 	import { getDash, Resource } from '../lib/dash.svelte'
-	import { googleError } from '../lib/google'
 	import { loginMessage, onlyLogin, PROVIDER_NAME } from '../lib/account'
 	import { IMPORTER_INFO, importerInfo } from '@misomoon/core/importers'
 
@@ -46,14 +45,9 @@
 	let newKey = $state<{ id: string; site: string; key: string } | null>(null)
 	/** the key whose Rotate button was pressed once, waiting for the second press */
 	let confirmRotate = $state<string | null>(null)
-	// a Google sign-in that failed comes back here with google_error=; say why once, then drop it from the URL
-	const signInError = googleError(location.search) ?? (loginReturn.error && loginReturn.settings ? loginMessage(loginReturn.error) : null)
-	let error = $state<string | null>(signInError)
-	if (signInError) {
-		const u = new URL(location.href)
-		u.searchParams.delete('google_error')
-		history.replaceState(history.state, '', u)
-	}
+	// a Google sign-in that failed comes back here; say why once
+	let error = $state<string | null>(googleReturn.error ?? (loginReturn.error && loginReturn.settings ? loginMessage(loginReturn.error) : null))
+	googleReturn.error = null
 	/** the action now running, so a double click cannot send it twice */
 	let busy = $state<string | null>(null)
 	/** asks once more before removing a working proxy hostname */
@@ -390,7 +384,7 @@
 	let importPoll = $state(0)
 	const imports = new Resource<ImportRow[]>(() => (dash.site && dash.canEdit ? `/api/v1/sites/${dash.site}/imports?_=${dash.tick}.${importPoll}` : null))
 	let uploading = $state(false)
-	let grant = $state<string | null>(new URLSearchParams(location.search).get('google'))
+	let grant = $state<string | null>(googleReturn.grant)
 	let properties = $state<{ id: string; name: string; account: string }[] | null>(null)
 	let gaProperty = $state('')
 	let gaFrom = $state('')
@@ -418,17 +412,18 @@
 				properties = p
 				gaProperty = p[0]?.id ?? ''
 			})
-			.catch((e) => (error = (e as Error).message))
+			.catch((e) => {
+				error = (e as Error).message
+				// this grant is no good, so opening Settings again shouldn't retry it
+				googleReturn.grant = null
+			})
 	})
 	const startGoogle = () =>
 		run('startGoogle', async () => {
 			const name = properties?.find((p) => p.id === gaProperty)?.name
 			await send('POST', `/api/v1/sites/${dash.site}/imports/google`, { grant, property: gaProperty, from: gaFrom || undefined, to: gaTo || undefined, label: name ? `Google: ${name}` : undefined })
-			grant = null
+			grant = googleReturn.grant = null
 			properties = null
-			const u = new URL(location.href)
-			u.searchParams.delete('google')
-			history.replaceState(history.state, '', u)
 		})
 	// an import from another tool's API: the form its importer asks for
 	let tool = $state('')
@@ -460,7 +455,7 @@
 		connected: { property: string; created_at: number; connected_by: string | null } | null
 	}
 	const search = new Resource<SearchState>(() => (dash.site && dash.canEdit ? `/api/v1/sites/${dash.site}/search-console?_=${dash.tick}` : null))
-	let searchGrant = $state<string | null>(new URLSearchParams(location.search).get('search'))
+	let searchGrant = $state<string | null>(googleReturn.searchGrant)
 	let searchProps = $state<{ property: string; matches: boolean }[] | null>(null)
 	let searchProp = $state('')
 	$effect(() => {
@@ -470,17 +465,17 @@
 				searchProps = p
 				searchProp = p[0]?.property ?? ''
 			})
-			.catch((e) => (error = (e as Error).message))
+			.catch((e) => {
+				error = (e as Error).message
+				googleReturn.searchGrant = null
+			})
 	})
 	const connectSearch = () => run('connectSearch', async () => (location.href = (await send<{ url: string }>('POST', `/api/v1/sites/${dash.site}/search-console/connect`)).url))
 	const saveSearch = () =>
 		run('saveSearch', async () => {
 			await send('PUT', `/api/v1/sites/${dash.site}/search-console`, { grant: searchGrant, property: searchProp })
-			searchGrant = null
+			searchGrant = googleReturn.searchGrant = null
 			searchProps = null
-			const u = new URL(location.href)
-			u.searchParams.delete('search')
-			history.replaceState(history.state, '', u)
 			await dash.load()
 		})
 	const disconnectSearch = () => run('disconnectSearch', async () => (await send('DELETE', `/api/v1/sites/${dash.site}/search-console`), await dash.load()))

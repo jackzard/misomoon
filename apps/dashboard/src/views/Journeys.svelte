@@ -10,9 +10,9 @@
 	import { journeyUrls } from '../lib/journeys'
 
 	const dash = getDash()
-	let direction = $state<'forward' | 'backward'>('forward')
+	const direction = $derived(dash.direction)
 	/** the chosen pages, in the order they were picked */
-	let picked = $state<string[]>([])
+	const picked = $derived(dash.steps)
 	let columns = $state.raw<(Journey | null)[]>([])
 	let error = $state<string | null>(null)
 	// not reactive: the last answers by URL
@@ -39,17 +39,17 @@
 
 	function choose(k: number, key: string) {
 		if (END.has(key) || picked.length >= 6) return
-		picked = [...picked.slice(0, k), key]
+		dash.steps = [...picked.slice(0, k), key]
 	}
 
 	/** Drops the nth pick and the ones after it: each step only means something after the steps before it. */
 	function drop(n: number) {
-		picked = picked.slice(0, n)
+		dash.steps = picked.slice(0, n)
 	}
 
 	function flip(dir: 'forward' | 'backward') {
-		direction = dir
-		picked = []
+		dash.direction = dir
+		dash.steps = []
 	}
 
 	const trail = $derived(direction === 'forward' ? picked : [...picked].reverse())
@@ -76,7 +76,7 @@
 			{/each}
 			{#if direction === 'forward'}<span class="muted">→ …</span>{/if}
 			{#if lastJourney}<span class="muted small">{num(lastJourney.visitors)} visitors</span>{/if}
-			<button class="btn ghost" onclick={() => (picked = [])}><RotateCcw size={13} /> Start over</button>
+			<button class="btn ghost" onclick={() => (dash.steps = [])}><RotateCcw size={13} /> Start over</button>
 		</div>
 	{/if}
 </div>

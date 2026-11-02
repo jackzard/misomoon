@@ -58,7 +58,7 @@
 		return t.id ?? t.property
 	}
 	let active = $state(initialTab())
-	let detailsOpen = $state(false)
+	const detailsKey = $derived(storageKey ?? title)
 	const tab = $derived(tabs.find((t) => key(t) === active) ?? tabs[0])
 
 	function choose(p: string) {
@@ -156,15 +156,15 @@
 
 	{#if !tab.custom}
 		<footer>
-			<button class="more" onclick={() => (detailsOpen = true)} disabled={!rows.length}>
+			<button class="more" onclick={() => (dash.details = detailsKey)} disabled={!rows.length}>
 				<Maximize2 size={13} /> See all
 			</button>
 		</footer>
 	{/if}
 </section>
 
-{#if detailsOpen}
-	<Details {tab} title={tab.label} onclose={() => (detailsOpen = false)} />
+{#if dash.details === detailsKey}
+	<Details {tab} title={tab.label} />
 {/if}
 
 <style>

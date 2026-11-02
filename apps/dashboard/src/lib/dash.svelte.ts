@@ -1,16 +1,18 @@
 import { can } from '@misomoon/core/roles'
-import { createContext, untrack } from 'svelte'
+import { createContext } from 'svelte'
 import { liveDemo } from './account'
-import { demoPath, embedded, emailLink, get, signupLink, type Me, type Site } from './api'
+import { demoPath, embedded, emailLink, get, signupLink, type BehaviorReport, type Me, type Site } from './api'
 import { themeMessage } from './embed'
-import { filterProblem, readUrlState, serializeFilters, VIEWS, type Filter, type FilterOp, type MetricKey, type View } from './url'
+import { restoreScroll, saveScroll, trackScroll } from './scroll'
+import { filterProblem, historyStep, readUrlState, serializeFilters, VIEWS, writeUrlState, type Filter, type FilterOp, type MetricKey, type View } from './url'
 
 export { PERIODS, VIEWS } from './url'
 export type { Filter, FilterOp, MetricKey, View } from './url'
 
 /**
  * Everything the dashboard is looking at. It mirrors itself into the URL so any
- * view, with its filters and period, can be shared as a link.
+ * view, with its filters and period, can be shared as a link, and each place you
+ * go is a history entry that the browser's Back button returns to.
  */
 export class Dash {
 	me = $state.raw<Me | null>(null)
@@ -27,11 +29,27 @@ export class Dash {
 	filters = $state<Filter[]>([])
 	metric = $state<MetricKey>('visitors')
 	/** the open Settings tab; empty picks the first one the page offers */
-	settingsTab = $state(new URLSearchParams(location.search).get('tab') ?? '')
+	settingsTab = $state('')
+	/** Behavior: the open report */
+	report = $state<BehaviorReport>('clicks')
+	/** Behavior: the page picked for a per-page report */
+	page = $state<string | null>(null)
+	/** Funnels: a saved funnel's id, `new` for an unsaved one, null for the first saved one */
+	funnel = $state<string | null>(null)
+	/** Paths: which way the path reads */
+	direction = $state<'forward' | 'backward'>('forward')
+	/** Paths: the chosen pages, in the order they were picked */
+	steps = $state.raw<string[]>([])
+	/** which panel's "See all" window is open */
+	details = $state<string | null>(null)
 	paletteOpen = $state(false)
 	theme = $state<'dark' | 'light'>('light')
 	/** bumps to refetch everything (realtime tick, manual refresh) */
 	tick = $state(0)
+	/** stops following the URL */
+	readonly dispose: () => void
+	/** stepping back to close the See all window, which takes the browser a moment */
+	private closing = false
 	/** a short message for the user, e.g. a filter the server would refuse */
 	notice = $state<string | null>(null)
 
@@ -78,17 +96,7 @@ export class Dash {
 	})
 
 	constructor() {
-		const u = readUrlState(location.search)
-		this.site = u.site
-		this.period = u.period
-		this.from = u.from
-		this.to = u.to
-		this.compare = u.compare
-		this.compareTo = u.compareTo
-		this.imported = u.imported
-		this.filters = u.filters
-		this.view = u.view
-		this.metric = u.metric
+		Object.assign(this, readUrlState(location.search))
 		try {
 			const t = localStorage.getItem('misomoon.theme')
 			this.theme = embedded?.theme ?? (t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
@@ -103,27 +111,94 @@ export class Dash {
 				this.applyTheme()
 			})
 
-		$effect.root(() => {
+		this.dispose = $effect.root(() => {
 			$effect(() => {
-				const q = new URLSearchParams()
-				if (this.site) q.set('site', this.site)
-				if (this.view !== 'overview') q.set('view', this.view)
-				if (this.view === 'settings' && this.settingsTab) q.set('tab', this.settingsTab)
-				if (this.period !== '30d') q.set('period', this.period)
-				if (this.period === 'custom' && this.from && this.to) {
-					q.set('from', this.from)
-					q.set('to', this.to)
-				}
-				if (this.filters.length) q.set('f', serializeFilters(this.filters))
-				if (!this.compare) q.set('compare', '0')
-				else if (this.compareTo === 'year') q.set('compare', 'year')
-				if (this.metric !== 'visitors') q.set('metric', this.metric)
-				if (!this.imported) q.set('imported', '0')
-				const s = q.toString()
-				const url = s ? `?${s}` : location.pathname
-				untrack(() => history.replaceState(null, '', url))
+				this.syncUrl()
+			})
+			$effect(() => {
+				if (!embedded) return trackScroll()
+			})
+			$effect(() => {
+				const onpop = () => this.restore()
+				addEventListener('popstate', onpop)
+				return () => removeEventListener('popstate', onpop)
 			})
 		})
+	}
+
+	/**
+	 * Writes the state into the URL. A new place gets its own history entry; `replace` is for
+	 * a correction the visitor didn't ask for, which Back must not step through. Embedded,
+	 * nothing adds an entry: an iframe's history is the page around it, so it would take
+	 * over that page's Back button.
+	 */
+	syncUrl(replace = false) {
+		const s = writeUrlState(this)
+		const next = s ? `?${s}` : ''
+		const from = location.search
+		if (next === from) return
+		const url = next || location.pathname
+		const step = replace || !this.me || embedded ? 'replace' : historyStep(from, next)
+		if (step === 'replace') return history.replaceState(history.state, '', url)
+		saveScroll()
+		const opensDetails = !!this.details && !new URLSearchParams(from).has('details')
+		history.pushState({ scroll: step === 'page' ? 0 : scrollY, opensDetails }, '', url)
+		if (step === 'page') scrollTo(0, 0)
+	}
+
+	/**
+	 * Closes the See all window by stepping back over the entry that opened it, so Back doesn't
+	 * open it again afterwards. Opened from a link there is no such entry, so it closes in place.
+	 */
+	closeDetails() {
+		if (this.closing) return
+		if (history.state?.opensDetails) {
+			this.closing = true
+			history.back()
+		} else {
+			this.details = null
+			this.syncUrl(true)
+		}
+	}
+
+	/** Back or Forward: returns to what the entry's URL says. A view's own selections stay when the entry is another view. */
+	private restore() {
+		this.closing = false
+		const u = readUrlState(location.search)
+		// an entry for a site you've since deleted or left stays on the current one
+		const site = u.site && this.sites.some((s) => s.id === u.site) ? u.site : this.site
+		if (site !== this.site) this.forgetSelections()
+		this.site = site
+		this.period = u.period
+		this.from = u.from
+		this.to = u.to
+		this.compare = u.compare
+		this.compareTo = u.compareTo
+		this.imported = u.imported
+		this.filters = u.filters
+		this.metric = u.metric
+		this.details = u.details
+		this.notice = null
+		this.view = this.views.includes(u.view) ? u.view : 'overview'
+		if (u.view === 'settings') this.settingsTab = u.settingsTab
+		if (u.view === 'behavior') {
+			this.report = u.report
+			this.page = u.page
+		}
+		if (u.view === 'funnels') this.funnel = u.funnel
+		if (u.view === 'journeys') {
+			this.direction = u.direction
+			this.steps = u.steps
+		}
+		this.syncUrl(true)
+		restoreScroll()
+	}
+
+	/** What only means something on one site's data. */
+	private forgetSelections() {
+		this.page = null
+		this.funnel = null
+		this.steps = []
 	}
 
 	async load() {
@@ -138,6 +213,8 @@ export class Dash {
 		}
 		if (!this.site || !ids.includes(this.site)) this.site = (this.me.demo && ids.includes(this.me.demo) ? this.me.demo : ids[0]) ?? null
 		if (this.isSample && this.view === 'settings') this.view = 'overview'
+		// what this just corrected is still the same place
+		this.syncUrl(true)
 	}
 
 	/** Filters belong to one site's data, so switching site clears them. */
@@ -145,7 +222,9 @@ export class Dash {
 		if (id === this.site) return
 		this.site = id
 		this.filters = []
+		this.details = null
 		this.notice = null
+		this.forgetSelections()
 	}
 
 	setPeriod(key: string, from?: string, to?: string) {

@@ -493,6 +493,9 @@ sends the person to `GET /api/v1/google/callback`, which finishes the sign-in on
 that cookie matches the state, and clears it. Without the cookie, or with another
 sign-in's, it answers `403` with a page saying the sign-in was started in another browser,
 and asks Google for nothing. Call `connect` from the browser that opens the consent page.
+Otherwise it redirects to `/?site=<id>&view=settings&tab=connect`, with `google=<grant>` for
+an import, `search=<grant>` for Search Console, or `google_error=<reason>` when the sign-in
+failed. The dashboard reads these once and takes them out of the URL.
 
 ### Google Search Console
 

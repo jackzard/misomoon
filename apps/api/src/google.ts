@@ -69,7 +69,7 @@ export async function googleCallback(env: Env, req: Request): Promise<Response> 
 	}
 	const grant = await env.CONTROL.prepare('SELECT site_id, purpose, created_at FROM google_auth WHERE id = ?').bind(state).first<{ site_id: string; purpose: GooglePurpose; created_at: number }>()
 	const param = grant?.purpose === 'search' ? 'search' : 'google'
-	const back = (q: string) => new Response(null, { status: 302, headers: { Location: `${url.origin}/?site=${encodeURIComponent(grant?.site_id ?? '')}&view=settings&${q}`, ...clear } })
+	const back = (q: string) => new Response(null, { status: 302, headers: { Location: `${url.origin}/?site=${encodeURIComponent(grant?.site_id ?? '')}&view=settings&tab=connect&${q}`, ...clear } })
 	if (!grant || Date.now() - grant.created_at > 3_600_000) return back('google_error=expired')
 	const code = url.searchParams.get('code')
 	if (!code) return back(`google_error=${encodeURIComponent(url.searchParams.get('error') ?? 'denied')}`)
