@@ -8420,7 +8420,7 @@ async function googleCallback(env, req) {
   }
   const grant = await env.CONTROL.prepare("SELECT site_id, purpose, created_at FROM google_auth WHERE id = ?").bind(state).first();
   const param = grant?.purpose === "search" ? "search" : "google";
-  const back = /* @__PURE__ */ __name((q2) => new Response(null, { status: 302, headers: { Location: `${url2.origin}/?site=${encodeURIComponent(grant?.site_id ?? "")}&view=settings&${q2}`, ...clear } }), "back");
+  const back = /* @__PURE__ */ __name((q2) => new Response(null, { status: 302, headers: { Location: `${url2.origin}/?site=${encodeURIComponent(grant?.site_id ?? "")}&view=settings&tab=connect&${q2}`, ...clear } }), "back");
   if (!grant || Date.now() - grant.created_at > 36e5) return back("google_error=expired");
   const code = url2.searchParams.get("code");
   if (!code) return back(`google_error=${encodeURIComponent(url2.searchParams.get("error") ?? "denied")}`);
