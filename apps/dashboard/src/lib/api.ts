@@ -1,4 +1,5 @@
 import { embedFrom } from './embed'
+import { googleError } from './google'
 import type { TeamPlanInfo } from '@misomoon/core/plans'
 import type { SiteRole, TeamRole } from '@misomoon/core/roles'
 import type { Region } from '@misomoon/core/shard'
@@ -35,6 +36,18 @@ export const checkoutReturn: boolean = !demoPath && new URLSearchParams(location
 export const loginReturn: { code: string | null; error: string | null; linked: string | null; settings: boolean } = (() => {
 	const q = new URLSearchParams(demoPath ? '' : location.search)
 	return { code: q.get('login'), error: q.get('login_error'), linked: q.get('linked'), settings: q.get('view') === 'settings' }
+})()
+
+/**
+ * Back from connecting Google in Settings: `?google=` a grant to pick an Analytics property
+ * with, `?search=` one to pick a Search Console property with, or `?google_error=` why there
+ * is none. Settings clears each once it's used. Read at load, since the dashboard rewrites
+ * the URL, which also keeps a used grant out of what Back returns to.
+ */
+export const googleReturn: { grant: string | null; searchGrant: string | null; error: string | null } = (() => {
+	const search = demoPath ? '' : location.search
+	const q = new URLSearchParams(search)
+	return { grant: q.get('google'), searchGrant: q.get('search'), error: googleError(search) }
 })()
 
 /** The slug when the dashboard is opened from a shared link (/share/<slug>). */

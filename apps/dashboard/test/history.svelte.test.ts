@@ -289,6 +289,40 @@ describe('what must not add an entry', () => {
 	})
 })
 
+describe('coming back from connecting Google', () => {
+	const returned = async (search: string, pathname = '/') => {
+		await boot(search, signedIn, pathname)
+		const { googleReturn } = await import('../src/lib/api')
+		return googleReturn
+	}
+
+	it('keeps what Settings needs after the URL is rewritten, and keeps it out of the history', async () => {
+		const r = await returned('?site=a&view=settings&tab=connect&google=g1')
+		expect(r).toEqual({ grant: 'g1', searchGrant: null, error: null })
+		expect(fake.entries.map((e) => e.search)).toEqual(['?site=a&view=settings&tab=connect'])
+	})
+
+	it('keeps a Search Console grant the same way', async () => {
+		expect(await returned('?site=a&view=settings&tab=connect&search=g2')).toEqual({ grant: null, searchGrant: 'g2', error: null })
+		expect(place.search).toBe('?site=a&view=settings&tab=connect')
+	})
+
+	it('keeps the reason a sign-in failed', async () => {
+		expect((await returned('?site=a&view=settings&tab=connect&google_error=denied')).error).toBe('The Google sign-in was canceled, so nothing was connected.')
+		expect(place.search).toBe('?site=a&view=settings&tab=connect')
+	})
+
+	it('ignores all of it on the demo', async () => {
+		const me = { ...signedIn, kind: 'anonymous' }
+		place.pathname = '/demo'
+		fake.reset('?google=g1&google_error=denied')
+		vi.resetModules()
+		vi.stubGlobal('fetch', vi.fn(async () => Response.json(me)))
+		const { googleReturn } = await import('../src/lib/api')
+		expect(googleReturn).toEqual({ grant: null, searchGrant: null, error: null })
+	})
+})
+
 describe('going Back to a place that changed', () => {
 	it('stays on the current site when the entry is for one you lost', async () => {
 		const dash = await boot()

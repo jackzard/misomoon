@@ -280,7 +280,7 @@ describe('Google sign-in', () => {
 		const res = await callback(env, state, `${COOKIE}=${state}`)
 		expect([res.status, res.headers.get('location'), res.headers.get('set-cookie')]).toEqual([
 			302,
-			`https://app.test/?site=shop-com&view=settings&search=${state}`,
+			`https://app.test/?site=shop-com&view=settings&tab=connect&search=${state}`,
 			`${COOKIE}=; Path=/api/v1/google; Max-Age=0; HttpOnly; Secure; SameSite=Lax`,
 		])
 		expect([sent, tokens(env)]).toEqual([['https://oauth2.googleapis.com/token'], [{ access_token: 'ya29' }]])
