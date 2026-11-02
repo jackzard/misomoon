@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vite-plus/test'
 import { DAY, HOUR, MINUTE, SAMPLE } from '@misomoon/core'
 import { invalidate } from '../src/control'
 import { fillSample } from '../src/sample'
@@ -55,6 +55,10 @@ describe('the sample site', () => {
 	})
 
 	it('tops up to now without storing a hit twice', async () => {
+		// the stats read below asks for the last 7 days of the clock, so it has to be NOW's clock
+		vi.useFakeTimers({ toFake: ['Date'] })
+		vi.setSystemTime(NOW)
+		onTestFinished(() => void vi.useRealTimers())
 		const env = fakeEnv({ SAMPLE_SITE: 'acme' })
 		// a small store, so the whole history fills quickly on every database. A run moves on
 		// from the newest stored hit, so quiet hours make it cover a little less than a day.
