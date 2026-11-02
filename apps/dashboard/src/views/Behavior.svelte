@@ -19,7 +19,7 @@
 		{ key: 'media', label: 'Media', feature: 'media' },
 		{ key: 'content', label: 'Content', feature: 'content' },
 	]
-	let tab = $state<BehaviorReport>('clicks')
+	const tab = $derived(dash.report)
 	const perPage = $derived(TABS.find((t) => t.key === tab)?.page ?? false)
 	const off = $derived.by(() => {
 		const t = TABS.find((x) => x.key === tab)
@@ -33,7 +33,7 @@
 		return f?.values[0] ?? null
 	})
 	const pages = new Resource<BreakdownResponse>(() => (dash.site && perPage && !filtered ? `/api/v1/stats/breakdown?${dash.params}&property=page&limit=50&_=${dash.tick}` : null))
-	let picked = $state<string | null>(null)
+	const picked = $derived(dash.page)
 	// the demo's recordings predate the sample site's clicks on /shop, its top page, so it opens on the home page
 	const first = $derived(dash.isSample ? (pages.data?.rows.find((r) => r.key === '/') ?? pages.data?.rows[0]) : pages.data?.rows[0])
 	const page = $derived(filtered ?? (picked && pages.data?.rows.some((r) => r.key === picked) ? picked : (first?.key ?? null)))
@@ -69,7 +69,7 @@
 	<div class="tabs scroll-thin">
 		<div class="group" role="tablist" aria-label="Report">
 			{#each TABS as t (t.key)}
-				<button role="tab" aria-selected={tab === t.key} class:on={tab === t.key} onclick={() => (tab = t.key)}>{t.label}</button>
+				<button role="tab" aria-selected={tab === t.key} class:on={tab === t.key} onclick={() => (dash.report = t.key)}>{t.label}</button>
 			{/each}
 		</div>
 	</div>
@@ -79,7 +79,7 @@
 				<span class="crumb mono">{filtered}</span>
 				<span class="muted small">from the page filter</span>
 			{:else if pageOptions.length}
-				<Select label="Page" value={page ?? ''} options={pageOptions} onchange={(v) => (picked = v)} class="page-select" />
+				<Select label="Page" value={page ?? ''} options={pageOptions} onchange={(v) => (dash.page = v)} class="page-select" />
 			{/if}
 		</div>
 	{/if}

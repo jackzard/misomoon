@@ -82,7 +82,6 @@
 	}
 	let tabKey = $state(remember('tab') ?? '')
 	let lensKey = $state(remember('lens') ?? '')
-	let detailsOpen = $state(false)
 	const tab = $derived(tabs.find((t) => t.property === tabKey) ?? tabs[0])
 
 	const compare = $derived(dash.compare ? `&compare=${dash.compareTo}` : '')
@@ -246,7 +245,7 @@
 				{displayKey(tab.property, inside)}
 			</button>
 		{:else}
-			<button class="more" onclick={() => (detailsOpen = true)} disabled={!shown.length}><Maximize2 size={13} /> See all {tab.plural ?? ''}</button>
+			<button class="more" onclick={() => (dash.details = storageKey)} disabled={!shown.length}><Maximize2 size={13} /> See all {tab.plural ?? ''}</button>
 		{/if}
 	</footer>
 </section>
@@ -262,8 +261,8 @@
 	{/if}
 {/snippet}
 
-{#if detailsOpen}
-	<Details tab={{ property: tab.property, label: tab.label, filterFor: tab.filterFor }} title={tab.label} onclose={() => (detailsOpen = false)} />
+{#if dash.details === storageKey}
+	<Details tab={{ property: tab.property, label: tab.label, filterFor: tab.filterFor }} title={tab.label} />
 {/if}
 
 <style>

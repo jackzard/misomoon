@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Plus from '@lucide/svelte/icons/plus'
 	import Trash from '@lucide/svelte/icons/trash-2'
+	import { untrack } from 'svelte'
 	import Select from '../components/Select.svelte'
 	import Topbar from '../components/Topbar.svelte'
 	import { send, type Funnel, type FunnelMode, type FunnelResult, type FunnelStep } from '../lib/api'
@@ -22,25 +23,39 @@
 		{ key: 'strict', label: 'Strict', hint: 'Steps in order with nothing in between.' },
 		{ key: 'flexible', label: 'Flexible', hint: 'Middle steps in order; the last step counts anyone who reached it after the first.' },
 	]
-	let selected = $state<string | null>(null)
+	const selected = $derived(dash.funnel === 'new' ? null : dash.funnel)
 	let result = $state.raw<FunnelResult | null>(null)
 	let error = $state<string | null>(null)
 	let running = $state(false)
 	let saving = $state(false)
 	let saveError = $state<string | null>(null)
 
-	// Open the first saved funnel by default, once: removing every step later must not swap in a saved one.
-	let opened = false
+	// The builder opens what the URL names, which Back and Forward can change. Refreshing the
+	// saved list must not swap the steps being edited, so a value opens once. A funnel that's
+	// gone, or none named, opens the first saved one, in the same history entry.
+	let shown: string | null | undefined
 	$effect(() => {
 		const list = saved.data
-		if (opened || !list) return
-		opened = true
-		if (list.length && !selected && !steps.length) open(list[0])
+		const want = dash.funnel
+		if (!list || want === shown) return
+		untrack(() => {
+			if (want === 'new') return blank()
+			// steps added while the list loaded stay
+			if (!want && steps.length) return void (shown = null)
+			const f = list.find((x) => x.id === want) ?? list[0]
+			if (f) open(f)
+			else {
+				name = ''
+				steps = []
+				dash.funnel = shown = null
+			}
+			dash.syncUrl(true)
+		})
 	})
 
 	function open(f: Funnel) {
 		saveError = null
-		selected = f.id
+		dash.funnel = shown = f.id
 		name = f.name
 		mode = f.mode ?? 'sequential'
 		steps = f.steps.map((s) => ({ ...s }))
@@ -48,7 +63,7 @@
 
 	function blank() {
 		saveError = null
-		selected = null
+		dash.funnel = shown = 'new'
 		name = ''
 		mode = 'sequential'
 		steps = [
@@ -103,7 +118,8 @@
 			const f = selected
 				? await send<Funnel>('PUT', `/api/v1/sites/${dash.site}/funnels/${selected}`, body)
 				: await send<Funnel>('POST', `/api/v1/sites/${dash.site}/funnels`, body)
-			selected = f.id
+			dash.funnel = shown = f.id
+			dash.syncUrl(true)
 			dash.tick++
 		} catch (e) {
 			saveError = (e as Error).message
@@ -122,6 +138,7 @@
 		try {
 			await send('DELETE', `/api/v1/sites/${dash.site}/funnels/${selected}`)
 			blank()
+			dash.syncUrl(true)
 			dash.tick++
 		} catch (e) {
 			saveError = (e as Error).message

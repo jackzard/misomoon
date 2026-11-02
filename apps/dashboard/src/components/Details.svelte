@@ -8,7 +8,7 @@
 	import { appendRows, sortRows } from '../lib/rows'
 	import type { PanelTab } from './Panel.svelte'
 
-	let { tab, title, onclose }: { tab: PanelTab; title: string; onclose: () => void } = $props()
+	let { tab, title }: { tab: PanelTab; title: string } = $props()
 	const dash = getDash()
 
 	type Col = { key: keyof Row; label: string; fmt: (v: number) => string }
@@ -124,11 +124,16 @@
 
 	let input: HTMLInputElement | undefined = $state()
 	$effect(() => input?.focus())
+	// gone because the view changed (the palette, a shortcut): coming back shouldn't reopen it
+	const mine = dash.details
+	$effect(() => () => {
+		if (dash.details === mine) dash.details = null
+	})
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && dash.closeDetails()} />
 
-<div class="scrim" onclick={onclose} role="presentation"></div>
+<div class="scrim" onclick={() => dash.closeDetails()} role="presentation"></div>
 <div class="modal card" role="dialog" aria-modal="true" aria-label={title}>
 	<header>
 		<h2 class="serif">{title}</h2>
@@ -136,7 +141,7 @@
 			<Search size={14} />
 			<input bind:this={input} bind:value={search} aria-label="Search {title.toLowerCase()}" placeholder="Search {title.toLowerCase()}…" />
 		</label>
-		<button class="btn icon ghost" onclick={onclose} aria-label="Close"><X size={16} /></button>
+		<button class="btn icon ghost" onclick={() => dash.closeDetails()} aria-label="Close"><X size={16} /></button>
 	</header>
 	<div class="table scroll-thin">
 		<table>
@@ -172,13 +177,13 @@
 						onclick={() => {
 							if (!target) return
 							dash.toggleFilter(target[0], target[1])
-							onclose()
+							dash.details = null
 						}}
 						onkeydown={(e) => {
 							if (!target || (e.key !== 'Enter' && e.key !== ' ')) return
 							e.preventDefault()
 							dash.toggleFilter(target[0], target[1])
-							onclose()
+							dash.details = null
 						}}
 					>
 						<td class="k">

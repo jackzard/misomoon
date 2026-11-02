@@ -1,4 +1,5 @@
 import { MAX_FILTERS, MAX_TOTAL_VALUES, MAX_VALUES } from '@misomoon/core/filters'
+import type { BehaviorReport } from './api'
 
 export type View = 'overview' | 'realtime' | 'funnels' | 'journeys' | 'behavior' | 'vitals' | 'settings'
 export type MetricKey = 'visitors' | 'visits' | 'pageviews' | 'views_per_visit' | 'bounce_rate' | 'visit_duration' | 'revenue'
@@ -28,10 +29,15 @@ export const PERIODS = [
 
 export const VIEWS: View[] = ['overview', 'realtime', 'funnels', 'journeys', 'behavior', 'vitals', 'settings']
 const METRIC_KEYS: MetricKey[] = ['visitors', 'visits', 'pageviews', 'views_per_visit', 'bounce_rate', 'visit_duration', 'revenue']
+const REPORTS: BehaviorReport[] = ['clicks', 'scroll', 'search', 'errors', 'forms', 'media', 'content']
 const OPS: FilterOp[] = ['!=', '==', '!~', '~']
 const DAY = 86_400_000
 /** The server's limit for a custom range (core resolvePeriod). */
 const MAX_CUSTOM_DAYS = 400
+/** The most pages a path can pick (the Paths view stops there). */
+const MAX_STEPS = 6
+/** The views with a "See all" window. */
+const DETAILS_VIEWS: View[] = ['overview', 'vitals']
 
 export function serializeFilters(filters: Filter[]): string {
 	return filters.map((f) => `${f.dim}${f.op}${f.values.join('|')}`).join(';')
@@ -95,6 +101,20 @@ export interface UrlState {
 	filters: Filter[]
 	view: View
 	metric: MetricKey
+	/** the open Settings tab; empty picks the first one the page offers */
+	settingsTab: string
+	/** Behavior: the open report */
+	report: BehaviorReport
+	/** Behavior: the page picked for a per-page report */
+	page: string | null
+	/** Funnels: a saved funnel's id, `new` for an unsaved one, null for the first saved one */
+	funnel: string | null
+	/** Paths: which way the path reads */
+	direction: 'forward' | 'backward'
+	/** Paths: the chosen pages, in the order they were picked */
+	steps: string[]
+	/** which panel's "See all" window is open */
+	details: string | null
 }
 
 /** Reads the dashboard state from a query string, falling back to defaults for anything the server would refuse. */
@@ -107,6 +127,7 @@ export function readUrlState(search: string): UrlState {
 	if (period !== 'custom') from = to = null
 	const view = q.get('view') as View
 	const metric = q.get('metric') as MetricKey
+	const report = q.get('report') as BehaviorReport
 	return {
 		site: q.get('site'),
 		period,
@@ -118,5 +139,60 @@ export function readUrlState(search: string): UrlState {
 		filters: parseFilters(q.get('f')),
 		view: VIEWS.includes(view) ? view : 'overview',
 		metric: METRIC_KEYS.includes(metric) ? metric : 'visitors',
+		settingsTab: q.get('tab') ?? '',
+		report: REPORTS.includes(report) ? report : 'clicks',
+		page: q.get('page'),
+		funnel: q.get('funnel'),
+		direction: q.get('dir') === 'backward' ? 'backward' : 'forward',
+		steps: q.getAll('step').slice(0, MAX_STEPS),
+		details: q.get('details'),
 	}
+}
+
+/** The query string for a dashboard state, without the `?`. It leaves out defaults and what the open view doesn't show. */
+export function writeUrlState(s: UrlState): string {
+	const q = new URLSearchParams()
+	if (s.site) q.set('site', s.site)
+	if (s.view !== 'overview') q.set('view', s.view)
+	if (s.view === 'settings' && s.settingsTab) q.set('tab', s.settingsTab)
+	if (s.view === 'behavior') {
+		if (s.report !== 'clicks') q.set('report', s.report)
+		if (s.page) q.set('page', s.page)
+	}
+	if (s.view === 'funnels' && s.funnel) q.set('funnel', s.funnel)
+	if (s.view === 'journeys') {
+		if (s.direction !== 'forward') q.set('dir', s.direction)
+		for (const step of s.steps) q.append('step', step)
+	}
+	if (s.details && DETAILS_VIEWS.includes(s.view)) q.set('details', s.details)
+	if (s.period !== '30d') q.set('period', s.period)
+	if (s.period === 'custom' && s.from && s.to) {
+		q.set('from', s.from)
+		q.set('to', s.to)
+	}
+	if (s.filters.length) q.set('f', serializeFilters(s.filters))
+	if (!s.compare) q.set('compare', '0')
+	else if (s.compareTo === 'year') q.set('compare', 'year')
+	if (s.metric !== 'visitors') q.set('metric', s.metric)
+	if (!s.imported) q.set('imported', '0')
+	return q.toString()
+}
+
+// Comparison, chart metric and imported history adjust the report you're on, so Back skips them.
+const NEW_PAGE = ['site', 'view', 'tab']
+const WITHIN_PAGE = ['report', 'page', 'funnel', 'dir', 'step', 'details', 'period', 'from', 'to', 'f']
+
+/**
+ * What going from one query string to another does to the browser's history. `page` and
+ * `within` add an entry that Back returns to; `page` also starts at the top of the page.
+ * Without a site on both sides the dashboard is still working out where it is, and an
+ * entry for that would send Back straight into the same redirect.
+ */
+export function historyStep(from: string, to: string): 'page' | 'within' | 'replace' {
+	const a = new URLSearchParams(from)
+	const b = new URLSearchParams(to)
+	const differs = (k: string) => a.getAll(k).join('\n') !== b.getAll(k).join('\n')
+	if (!a.get('site') || !b.get('site')) return 'replace'
+	if (NEW_PAGE.some(differs)) return 'page'
+	return WITHIN_PAGE.some(differs) ? 'within' : 'replace'
 }
